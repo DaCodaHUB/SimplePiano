@@ -25,6 +25,7 @@ fun PianoKeyboard(
     engine: PianoEngine,
     sustain: Boolean,
     modifier: Modifier = Modifier,
+    onNoteEvent: ((Int, Boolean) -> Unit)? = null,
     whiteKeyWidth: Dp = 64.dp,
     keyHeight: Dp = 220.dp,
     blackKeyWidthRatio: Float = 0.62f,
@@ -228,15 +229,19 @@ fun PianoKeyboard(
                                     if (prev == null) {
                                         pointerToMidi[id] = midi
                                         press(midi)
+                                        onNoteEvent?.invoke(midi, true)
                                     } else if (prev != midi) {
                                         release(prev)
+                                        onNoteEvent?.invoke(prev, false)
                                         pointerToMidi[id] = midi
                                         press(midi)
+                                        onNoteEvent?.invoke(midi, true)
                                     }
                                     change.consume()
                                 } else {
                                     val prev = pointerToMidi.remove(id)
                                     if (prev != null) release(prev)
+                                    if (prev != null) onNoteEvent?.invoke(prev, false)
                                     change.consume()
                                 }
                             }

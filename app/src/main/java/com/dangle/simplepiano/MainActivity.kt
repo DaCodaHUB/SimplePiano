@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.dangle.simplepiano.audio.PianoEngine
+import com.dangle.simplepiano.audio.Recorder
 import com.dangle.simplepiano.ui.PianoKeyboard
 
 class MainActivity : ComponentActivity() {
@@ -43,6 +45,8 @@ fun PianoScreen() {
             .padding(horizontal = 24.dp)
     ) {
         if (loaded) {
+            val scope = rememberCoroutineScope()
+
             Column(
                 modifier = Modifier
                     .fillMaxSize(),
@@ -50,6 +54,8 @@ fun PianoScreen() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Top controls
+                val recorder = remember { Recorder() }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -57,8 +63,47 @@ fun PianoScreen() {
                     Text("Sustain")
                     Switch(
                         checked = sustain,
-                        onCheckedChange = { sustain = it }
+                        onCheckedChange = {
+                            sustain = it
+                            if (recorder.isRecording) recorder.recordPedal(it)
+                        }
                     )
+                }
+
+                // Record / Replay controls
+                var recording by remember { mutableStateOf(false) }
+                var playing by remember { mutableStateOf(false) }
+
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(onClick = {
+                        if (!recording) {
+                            recorder.start()
+                            recording = true
+                        } else {
+                            recorder.stop()
+                            recording = false
+                        }
+                    }, enabled = !playing) {
+                        Text(if (!recording) "Record" else "Stop")
+                    }
+
+                    Button(onClick = {
+                        if (recorder.hasEvents() && !recording && !playing) {
+                            playing = true
+                            val job = recorder.replay(engine, scope, initialSustain = sustain)
+                            job.invokeOnCompletion { playing = false }
+                        }
+                    }, enabled = !recording && !playing) {
+                        Text("Replay")
+                    }
+
+                    // simple status
+                    if (recording) Text("Recording…")
+                    if (playing) Text("Playing…")
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -67,7 +112,8 @@ fun PianoScreen() {
                 PianoKeyboard(
                     engine = engine,
                     sustain = sustain,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    onNoteEvent = { midi, down -> if (recording) recorder.recordNote(midi, down) }
                 )
             }
         } else {
