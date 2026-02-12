@@ -12,9 +12,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.Dp
@@ -26,11 +30,15 @@ import androidx.compose.runtime.*
 import kotlinx.coroutines.Job
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.dangle.simplepiano.audio.PianoEngine
 import com.dangle.simplepiano.audio.Recorder
 import com.dangle.simplepiano.ui.PianoKeyboard
+import kotlinx.coroutines.launch
 
 @Composable
 fun RecordIcon(size: Dp, recording: Boolean, enabled: Boolean = true, onToggle: () -> Unit) {
@@ -156,29 +164,91 @@ fun PianoScreen() {
                 // Top controls
                 val recorder = remember { Recorder() }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Sustain icon button
-                    SustainIcon(size = 40.dp, on = sustain, onClick = {
-                        sustain = !sustain
-                        if (recorder.isRecording) recorder.recordPedal(sustain)
-                    })
-                }
-
-                // Record / Replay controls
+                // Record / Replay controls state
                 var recording by remember { mutableStateOf(false) }
                 var playing by remember { mutableStateOf(false) }
                 var replayJob by remember { mutableStateOf<Job?>(null) }
 
-                Spacer(Modifier.height(8.dp))
+                // Row with sustain, mini scrollbar, record, play
+                val keys = remember { com.dangle.simplepiano.ui.build88Keys() }
+                val whiteKeys = remember(keys) { keys.filter { !it.isBlack } }
+                val blackKeys = remember(keys) { keys.filter { it.isBlack } }
+
+                val mainScroll = rememberScrollState()
+                val density = LocalDensity.current
+                var mainViewportWidthPx by remember { mutableStateOf(0) }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Record icon
-                    RecordIcon(size = 48.dp, recording = recording, enabled = !playing, onToggle = {
+                    SustainIcon(size = 40.dp, on = sustain, onClick = {
+                        sustain = !sustain
+                        if (recorder.isRecording) recorder.recordPedal(sustain)
+                    })
+
+                    // mini piano strip (shorter)
+                    val miniWhiteKeyWidth = 10.dp
+                    val miniKeyHeight = 40.dp
+                    val miniContentWidthDp = (miniWhiteKeyWidth + 1.dp) * whiteKeys.size
+
+                        Box(Modifier.weight(1f).height(miniKeyHeight).padding(horizontal = 12.dp).clipToBounds().onSizeChanged { /* measured below */ }) {
+                        // measure available mini box width and scale the mini keys to fit so the strip never overflows
+                        var miniBoxWidthPxLocal by remember { mutableStateOf(0) }
+                        Box(Modifier.matchParentSize().onSizeChanged { miniBoxWidthPxLocal = it.width })
+
+                        val miniTotalPx = with(density) { miniContentWidthDp.toPx() }
+                        val availablePx = miniBoxWidthPxLocal.toFloat().coerceAtLeast(1f)
+                        val scale = (availablePx / miniTotalPx).coerceAtMost(1f)
+
+                        val effWhiteW = miniWhiteKeyWidth * scale
+                        val effSep = 1.dp * scale
+                        val miniRowWidthDp = (effWhiteW + effSep) * whiteKeys.size
+
+                        Row(Modifier.width(miniRowWidthDp).fillMaxHeight()) {
+                            for (wk in whiteKeys) {
+                                Box(Modifier.width(effWhiteW).fillMaxHeight().background(Color(0xFFF2F2F2)))
+                                Box(Modifier.width(effSep).fillMaxHeight().background(Color(0xFFBBBBBB)))
+                            }
+                        }
+
+                        val miniBlackW = effWhiteW * 0.62f
+                        val stride = effWhiteW + effSep
+                        for (bk in blackKeys) {
+                            val leftWhiteIndex = whiteKeys.indexOfFirst { it.midi == bk.midi - 1 }
+                            if (leftWhiteIndex == -1) continue
+                            Box(Modifier.offset(x = stride * leftWhiteIndex + effWhiteW + (effSep / 2f) - (miniBlackW / 2f)).width(miniBlackW).height(miniKeyHeight * 0.62f).background(Color(0xFF003233)))
+                        }
+
+                        // highlight overlay and drag (use actual mini row width mapping)
+                        val mainWhiteKeyWidth = 64.dp
+                        val mainSeparatorWidth = 1.dp
+                        val contentWidthPx = with(density) { (mainWhiteKeyWidth + mainSeparatorWidth).toPx() * whiteKeys.size }
+                        val miniContentWidthPx = with(density) { miniRowWidthDp.toPx() }
+                        val vpMainW = mainViewportWidthPx.toFloat()
+                        val visibleMiniWidthPxRaw = if (contentWidthPx <= 0f) 0f else (vpMainW / contentWidthPx) * miniContentWidthPx
+                        val visibleMiniWidthPx = visibleMiniWidthPxRaw
+                        val maxMain = (contentWidthPx - vpMainW).coerceAtLeast(0f)
+                        val maxMini = (miniContentWidthPx - visibleMiniWidthPx).coerceAtLeast(0f)
+                        val highlightOffsetPx = if (maxMain <= 0f) 0f else (mainScroll.value.toFloat() / maxMain) * maxMini
+
+                        Box(Modifier.offset { IntOffset(highlightOffsetPx.toInt(), 0) }.width(with(density) { visibleMiniWidthPx.toDp() }).fillMaxHeight().background(Color(0x55208583)).pointerInput(Unit) {
+                            var dragTotal = 0f
+                            var initialMain = 0
+                            detectDragGestures(onDragStart = { _ -> dragTotal = 0f; initialMain = mainScroll.value }, onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragTotal += dragAmount.x
+                                if (maxMini <= 0f || maxMain <= 0f) return@detectDragGestures
+                                val ratio = (dragTotal / maxMini)
+                                val target = (initialMain + ratio * maxMain).coerceIn(0f, maxMain)
+                                scope.launch { mainScroll.scrollTo(target.toInt()) }
+                            })
+                        })
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    RecordIcon(size = miniKeyHeight, recording = recording, enabled = !playing, onToggle = {
                         if (!recording) {
                             recorder.start()
                             recording = true
@@ -188,8 +258,7 @@ fun PianoScreen() {
                         }
                     })
 
-                    // Play / Pause icon
-                    PlayIcon(size = 48.dp, playing = playing, enabled = !recording, onClick = {
+                    PlayIcon(size = miniKeyHeight, playing = playing, enabled = !recording, onClick = {
                         if (!playing) {
                             if (recorder.hasEvents() && !recording) {
                                 playing = true
@@ -205,7 +274,6 @@ fun PianoScreen() {
                         }
                     })
 
-                    // simple status (icons only)
                 }
 
                 Spacer(Modifier.height(20.dp))
@@ -215,6 +283,8 @@ fun PianoScreen() {
                     engine = engine,
                     sustain = sustain,
                     modifier = Modifier.fillMaxWidth(),
+                    externalScroll = mainScroll,
+                    onViewportWidthChanged = { mainViewportWidthPx = it },
                     onNoteEvent = { midi, down -> if (recording) recorder.recordNote(midi, down) }
                 )
             }

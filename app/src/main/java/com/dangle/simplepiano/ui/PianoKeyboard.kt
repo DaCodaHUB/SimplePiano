@@ -2,6 +2,7 @@ package com.dangle.simplepiano.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Slider
@@ -30,6 +31,8 @@ fun PianoKeyboard(
     sustain: Boolean,
     modifier: Modifier = Modifier,
     onNoteEvent: ((Int, Boolean) -> Unit)? = null,
+    externalScroll: ScrollState? = null,
+    onViewportWidthChanged: ((Int) -> Unit)? = null,
     whiteKeyWidth: Dp = 64.dp,
     keyHeight: Dp = 220.dp,
     blackKeyWidthRatio: Float = 0.62f,
@@ -40,7 +43,7 @@ fun PianoKeyboard(
     val whiteKeys = remember(keys) { keys.filter { !it.isBlack } } // 52
     val blackKeys = remember(keys) { keys.filter { it.isBlack } }
 
-    val scroll = rememberScrollState()
+    val scroll = externalScroll ?: rememberScrollState()
     val scope = rememberCoroutineScope()
 
     // prevent stale state inside pointer input
@@ -189,112 +192,17 @@ fun PianoKeyboard(
     // IMPORTANT: content width must include separators too
     val contentWidth = (whiteKeyWidth + separatorWidth) * whiteKeys.size
 
-    val density = LocalDensity.current
-
-    var viewportWidthPx by remember { mutableStateOf(0) }
-
     Column(modifier) {
-        // Mini piano strip with draggable viewport highlight
-        val miniWhiteKeyWidth = 12.dp
-        val miniKeyHeight = 48.dp
-
-        val contentWidthPx = with(density) { contentWidth.toPx() }
-        val miniContentWidthDp = (miniWhiteKeyWidth + separatorWidth) * whiteKeys.size
-        val miniContentWidthPx = with(density) { miniContentWidthDp.toPx() }
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(miniKeyHeight)
-                .onSizeChanged { viewportWidthPx = it.width }
-        ) {
-            // mini piano (visual only)
-            Row(Modifier.width(miniContentWidthDp).fillMaxHeight()) {
-                for (wk in whiteKeys) {
-                    Box(
-                        Modifier
-                            .width(miniWhiteKeyWidth)
-                            .fillMaxHeight()
-                            .background(Color(0xFFF2F2F2))
-                    )
-                    Box(
-                        Modifier
-                            .width(separatorWidth)
-                            .fillMaxHeight()
-                            .background(Color(0xFFBBBBBB))
-                    )
-                }
-            }
-
-            val miniBlackW = miniWhiteKeyWidth * blackKeyWidthRatio
-            val miniStride = miniWhiteKeyWidth + separatorWidth
-            for (bk in blackKeys) {
-                val leftWhiteIndex = whiteKeys.indexOfFirst { it.midi == bk.midi - 1 }
-                if (leftWhiteIndex == -1) continue
-
-                Box(
-                    Modifier
-                        .offset(
-                            x = miniStride * leftWhiteIndex +
-                                    miniWhiteKeyWidth +
-                                    (separatorWidth / 2f) -
-                                    (miniBlackW / 2f)
-                        )
-                        .width(miniBlackW)
-                        .height(miniKeyHeight * blackKeyHeightRatio)
-                        .background(Color(0xFF003233))
-                )
-            }
-
-            // highlight
-            val vpW = viewportWidthPx.toFloat()
-            val visibleMiniWidthPx = if (contentWidthPx <= 0f) 0f else (vpW / contentWidthPx) * miniContentWidthPx
-            val maxMainScroll = (contentWidthPx - vpW).coerceAtLeast(0f)
-            val maxMiniScroll = (miniContentWidthPx - visibleMiniWidthPx).coerceAtLeast(0f)
-            val highlightOffsetPx = if (maxMainScroll <= 0f) 0f else (scroll.value.toFloat() / maxMainScroll) * maxMiniScroll
-
-            Box(
-                Modifier
-                    .offset { IntOffset(highlightOffsetPx.toInt(), 0) }
-                    .width(with(density) { visibleMiniWidthPx.toDp() })
-                    .fillMaxHeight()
-                    .background(Color(0x55208583))
-                    .pointerInput(Unit) {
-                        var dragTotal = 0f
-                        var initialMain = 0
-                        detectDragGestures(
-                            onDragStart = { _ ->
-                                dragTotal = 0f
-                                initialMain = scroll.value
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                dragTotal += dragAmount.x
-
-                                val miniW = miniContentWidthPx
-                                val visibleMini = if (contentWidthPx <= 0f) 0f else (vpW / contentWidthPx) * miniW
-                                val maxMain = (contentWidthPx - vpW).coerceAtLeast(0f)
-                                val maxMini = (miniW - visibleMini).coerceAtLeast(0f)
-
-                                if (maxMini <= 0f || maxMain <= 0f) return@detectDragGestures
-
-                                val ratio = (dragTotal / maxMini)
-                                val targetMain = (initialMain + ratio * maxMain).coerceIn(0f, maxMain)
-                                scope.launch { scroll.scrollTo(targetMain.toInt()) }
-                            }
-                        )
-                    }
-            )
-        }
-
+        // no mini strip here; main activity will render the mini strip so icons and it can be aligned
         Spacer(Modifier.height(8.dp))
 
         // OUTER: touch layer (not scrolled)
         Box(
-            Modifier
-                .fillMaxWidth()
-                .height(keyHeight)
-                .pointerInput(Unit) {
+                Modifier
+                    .fillMaxWidth()
+                    .height(keyHeight)
+                    .onSizeChanged { onViewportWidthChanged?.invoke(it.width) }
+                    .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
