@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -185,17 +189,102 @@ fun PianoKeyboard(
     // IMPORTANT: content width must include separators too
     val contentWidth = (whiteKeyWidth + separatorWidth) * whiteKeys.size
 
+    val density = LocalDensity.current
+
+    var viewportWidthPx by remember { mutableStateOf(0) }
+
     Column(modifier) {
-        // Free slider (pixel scroll)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Low")
-            Slider(
-                modifier = Modifier.weight(1f),
-                value = scroll.value.toFloat(),
-                onValueChange = { v -> scope.launch { scroll.scrollTo(v.toInt()) } },
-                valueRange = 0f..(scroll.maxValue.toFloat().coerceAtLeast(1f))
+        // Mini piano strip with draggable viewport highlight
+        val miniWhiteKeyWidth = 12.dp
+        val miniKeyHeight = 48.dp
+
+        val contentWidthPx = with(density) { contentWidth.toPx() }
+        val miniContentWidthDp = (miniWhiteKeyWidth + separatorWidth) * whiteKeys.size
+        val miniContentWidthPx = with(density) { miniContentWidthDp.toPx() }
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(miniKeyHeight)
+                .onSizeChanged { viewportWidthPx = it.width }
+        ) {
+            // mini piano (visual only)
+            Row(Modifier.width(miniContentWidthDp).fillMaxHeight()) {
+                for (wk in whiteKeys) {
+                    Box(
+                        Modifier
+                            .width(miniWhiteKeyWidth)
+                            .fillMaxHeight()
+                            .background(Color(0xFFF2F2F2))
+                    )
+                    Box(
+                        Modifier
+                            .width(separatorWidth)
+                            .fillMaxHeight()
+                            .background(Color(0xFFBBBBBB))
+                    )
+                }
+            }
+
+            val miniBlackW = miniWhiteKeyWidth * blackKeyWidthRatio
+            val miniStride = miniWhiteKeyWidth + separatorWidth
+            for (bk in blackKeys) {
+                val leftWhiteIndex = whiteKeys.indexOfFirst { it.midi == bk.midi - 1 }
+                if (leftWhiteIndex == -1) continue
+
+                Box(
+                    Modifier
+                        .offset(
+                            x = miniStride * leftWhiteIndex +
+                                    miniWhiteKeyWidth +
+                                    (separatorWidth / 2f) -
+                                    (miniBlackW / 2f)
+                        )
+                        .width(miniBlackW)
+                        .height(miniKeyHeight * blackKeyHeightRatio)
+                        .background(Color(0xFF003233))
+                )
+            }
+
+            // highlight
+            val vpW = viewportWidthPx.toFloat()
+            val visibleMiniWidthPx = if (contentWidthPx <= 0f) 0f else (vpW / contentWidthPx) * miniContentWidthPx
+            val maxMainScroll = (contentWidthPx - vpW).coerceAtLeast(0f)
+            val maxMiniScroll = (miniContentWidthPx - visibleMiniWidthPx).coerceAtLeast(0f)
+            val highlightOffsetPx = if (maxMainScroll <= 0f) 0f else (scroll.value.toFloat() / maxMainScroll) * maxMiniScroll
+
+            Box(
+                Modifier
+                    .offset { IntOffset(highlightOffsetPx.toInt(), 0) }
+                    .width(with(density) { visibleMiniWidthPx.toDp() })
+                    .fillMaxHeight()
+                    .background(Color(0x55208583))
+                    .pointerInput(Unit) {
+                        var dragTotal = 0f
+                        var initialMain = 0
+                        detectDragGestures(
+                            onDragStart = { _ ->
+                                dragTotal = 0f
+                                initialMain = scroll.value
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragTotal += dragAmount.x
+
+                                val miniW = miniContentWidthPx
+                                val visibleMini = if (contentWidthPx <= 0f) 0f else (vpW / contentWidthPx) * miniW
+                                val maxMain = (contentWidthPx - vpW).coerceAtLeast(0f)
+                                val maxMini = (miniW - visibleMini).coerceAtLeast(0f)
+
+                                if (maxMini <= 0f || maxMain <= 0f) return@detectDragGestures
+
+                                val ratio = (dragTotal / maxMini)
+                                val targetMain = (initialMain + ratio * maxMain).coerceIn(0f, maxMain)
+                                scope.launch { scroll.scrollTo(targetMain.toInt()) }
+                            }
+                        )
+                    }
             )
-            Text("High")
         }
 
         Spacer(Modifier.height(8.dp))
