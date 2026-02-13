@@ -192,39 +192,38 @@ fun PianoScreen() {
                     val miniKeyHeight = 40.dp
                     val miniContentWidthDp = (miniWhiteKeyWidth + 1.dp) * whiteKeys.size
 
-                        Box(Modifier.weight(1f).height(miniKeyHeight).padding(horizontal = 12.dp).clipToBounds().onSizeChanged { /* measured below */ }) {
-                        // measure available mini box width and scale the mini keys to fit so the strip never overflows
+                        Box(Modifier.weight(1f).height(miniKeyHeight).padding(horizontal = 8.dp).onSizeChanged { /* measured below */ }) {
+                        // measure available mini box width and scale the mini keys to fit
                         var miniBoxWidthPxLocal by remember { mutableStateOf(0) }
                         Box(Modifier.matchParentSize().onSizeChanged { miniBoxWidthPxLocal = it.width })
 
                         val miniTotalPx = with(density) { miniContentWidthDp.toPx() }
                         val availablePx = miniBoxWidthPxLocal.toFloat().coerceAtLeast(1f)
-                        val scale = (availablePx / miniTotalPx).coerceAtMost(1f)
+                        val scaledWhiteWPx = (with(density) { miniWhiteKeyWidth.toPx() } * (availablePx / miniTotalPx)).toInt()
+                        val scaledSepPx = (with(density) { 1.dp.toPx() } * (availablePx / miniTotalPx)).toInt()
+                        val stridePx = scaledWhiteWPx + scaledSepPx
+                        val miniRowWidthPx = stridePx * whiteKeys.size
 
-                        val effWhiteW = miniWhiteKeyWidth * scale
-                        val effSep = 1.dp * scale
-                        val miniRowWidthDp = (effWhiteW + effSep) * whiteKeys.size
-
-                        Row(Modifier.width(miniRowWidthDp).fillMaxHeight()) {
+                        Row(Modifier.width(with(density) { miniRowWidthPx.toDp() }).fillMaxHeight()) {
                             for (wk in whiteKeys) {
-                                Box(Modifier.width(effWhiteW).fillMaxHeight().background(Color(0xFFF2F2F2)))
-                                Box(Modifier.width(effSep).fillMaxHeight().background(Color(0xFFBBBBBB)))
+                                Box(Modifier.width(with(density) { scaledWhiteWPx.toDp() }).fillMaxHeight().background(Color(0xFFF2F2F2)))
+                                Box(Modifier.width(with(density) { scaledSepPx.toDp() }).fillMaxHeight().background(Color(0xFFBBBBBB)))
                             }
                         }
 
-                        val miniBlackW = effWhiteW * 0.62f
-                        val stride = effWhiteW + effSep
+                        val miniBlackWPx = (scaledWhiteWPx * 0.62f).toInt()
                         for (bk in blackKeys) {
                             val leftWhiteIndex = whiteKeys.indexOfFirst { it.midi == bk.midi - 1 }
                             if (leftWhiteIndex == -1) continue
-                            Box(Modifier.offset(x = stride * leftWhiteIndex + effWhiteW + (effSep / 2f) - (miniBlackW / 2f)).width(miniBlackW).height(miniKeyHeight * 0.62f).background(Color(0xFF003233)))
+                            val offsetPx = stridePx * leftWhiteIndex + scaledWhiteWPx + (scaledSepPx / 2f) - (miniBlackWPx / 2f)
+                            Box(Modifier.offset { IntOffset(offsetPx.toInt(), 0) }.width(with(density) { miniBlackWPx.toDp() }).height(miniKeyHeight * 0.62f).background(Color(0xFF003233)))
                         }
 
                         // highlight overlay and drag (use actual mini row width mapping)
                         val mainWhiteKeyWidth = 64.dp
                         val mainSeparatorWidth = 1.dp
                         val contentWidthPx = with(density) { (mainWhiteKeyWidth + mainSeparatorWidth).toPx() * whiteKeys.size }
-                        val miniContentWidthPx = with(density) { miniRowWidthDp.toPx() }
+                        val miniContentWidthPx = miniRowWidthPx.toFloat()
                         val vpMainW = mainViewportWidthPx.toFloat()
                         val visibleMiniWidthPxRaw = if (contentWidthPx <= 0f) 0f else (vpMainW / contentWidthPx) * miniContentWidthPx
                         val visibleMiniWidthPx = visibleMiniWidthPxRaw
