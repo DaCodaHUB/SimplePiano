@@ -193,9 +193,6 @@ fun PianoKeyboard(
     val contentWidth = (whiteKeyWidth + separatorWidth) * whiteKeys.size
 
     Column(modifier) {
-        // no mini strip here; main activity will render the mini strip so icons and it can be aligned
-        Spacer(Modifier.height(8.dp))
-
         // OUTER: touch layer (not scrolled)
         Box(
                 Modifier
