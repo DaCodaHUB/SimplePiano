@@ -261,12 +261,14 @@ fun PianoKeyboard(
                             Modifier
                                 .width(whiteKeyWidth)
                                 .fillMaxHeight()
+                                .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
                                 .background(if (down) Color(0xFFE8E8E8) else Color.White)
                         )
                         Box(
                             Modifier
                                 .width(separatorWidth)
                                 .fillMaxHeight()
+                                .padding(bottom = 8.dp)
                                 .background(Color(0xFFCCCCCC))
                         )
                     }
