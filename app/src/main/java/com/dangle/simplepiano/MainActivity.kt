@@ -3,9 +3,14 @@ package com.dangle.simplepiano
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -40,6 +45,7 @@ import com.dangle.simplepiano.audio.PianoEngine
 import com.dangle.simplepiano.audio.Recorder
 import com.dangle.simplepiano.ui.PianoKeyboard
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun RecordIcon(size: Dp, recording: Boolean, enabled: Boolean = true, onToggle: () -> Unit) {
@@ -123,6 +129,96 @@ fun SustainIcon(size: Dp, on: Boolean, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(6.dp))
                 .background(Color(0xFFEFF6F6))
         )
+    }
+}
+
+@Composable
+private fun PianoLoadingAnimation(modifier: Modifier = Modifier) {
+    val whiteCount = 14
+    val transition = rememberInfiniteTransition(label = "piano_loading")
+    val playHead by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = whiteCount.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "play_head"
+    )
+
+    val whiteW = 18.dp
+    val whiteH = 90.dp
+    val sep = 1.dp
+    val blackW = whiteW * 0.62f
+    val blackH = whiteH * 0.62f
+    val stride = whiteW + sep
+    val blackAfterInOctave = setOf(0, 1, 3, 4, 5) // C D F G A
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF151A20))
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .width(stride * whiteCount)
+                .height(whiteH)
+        ) {
+            Row(Modifier.fillMaxSize()) {
+                for (i in 0 until whiteCount) {
+                    val dist = abs((i + 0.5f) - playHead)
+                    val active = dist < 0.75f
+                    val keyColor = if (active) Color(0xFFE0EFF0) else Color(0xFFF8F8F8)
+                    Box(
+                        Modifier
+                            .width(whiteW)
+                            .fillMaxHeight()
+                            .background(keyColor)
+                    )
+                    Box(
+                        Modifier
+                            .width(sep)
+                            .fillMaxHeight()
+                            .background(Color(0xFFCACACA))
+                    )
+                }
+            }
+
+            for (i in 0 until (whiteCount - 1)) {
+                if ((i % 7) !in blackAfterInOctave) continue
+                val dist = abs((i + 0.95f) - playHead)
+                val active = dist < 0.75f
+                val keyBrush = if (active) {
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF4A4A4A), Color(0xFF1C1C1C), Color(0xFF0C0C0C))
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF3B3B3B), Color(0xFF141414), Color(0xFF050505))
+                    )
+                }
+
+                Box(
+                    Modifier
+                        .offset(x = stride * i + whiteW + (sep / 2f) - (blackW / 2f))
+                        .width(blackW)
+                        .height(blackH)
+                        .clip(RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
+                        .background(keyBrush)
+                ) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(0.86f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(if (active) Color(0xFF1C1C1C) else Color(0xFF252525))
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -342,10 +438,9 @@ fun PianoScreen() {
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                CircularProgressIndicator()
-                Spacer(Modifier.height(12.dp))
-                Text("Loading piano…")
+                PianoLoadingAnimation()
             }
         }
     }
 }
+
