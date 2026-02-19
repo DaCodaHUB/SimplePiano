@@ -63,6 +63,7 @@ fun PianoKeyboard(
 
     val blackH = keyHeight * blackKeyHeightRatio
     val blackW = whiteKeyWidth * blackKeyWidthRatio
+    val pressedBlue = Color(0xFFE0EFF0)
 
     fun stopNow(streamId: Int) {
         fader.cancel(streamId)
@@ -262,7 +263,7 @@ fun PianoKeyboard(
                                 .width(whiteKeyWidth)
                                 .fillMaxHeight()
                                 .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
-                                .background(if (down) Color(0xFFE8E8E8) else Color.White)
+                                .background(if (down) pressedBlue else Color.White)
                         )
                         Box(
                             Modifier
@@ -285,9 +286,9 @@ fun PianoKeyboard(
                     val bodyBrush = if (down) {
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF383838),
-                                Color(0xFF202020),
-                                Color(0xFF101010)
+                                Color(0xFF8FA8AF),
+                                Color(0xFF4A6068),
+                                Color(0xFF1F2D34)
                             )
                         )
                     } else {
@@ -336,7 +337,7 @@ fun PianoKeyboard(
                                 .fillMaxWidth(0.84f)
                                 .height(4.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(if (down) Color(0xFF161616) else Color(0xFF272727))
+                                .background(if (down) Color(0xFF6B858D) else Color(0xFF272727))
                         )
                     }
                 }
