@@ -5,16 +5,19 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.unit.Dp
@@ -277,6 +280,23 @@ fun PianoKeyboard(
                     if (leftWhiteIndex == -1) continue
 
                     val down = (pressCount[bk.midi] ?: 0) > 0
+                    val bodyBrush = if (down) {
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF383838),
+                                Color(0xFF202020),
+                                Color(0xFF101010)
+                            )
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF4A4A4A),
+                                Color(0xFF1E1E1E),
+                                Color(0xFF060606)
+                            )
+                        )
+                    }
 
                     Box(
                         Modifier
@@ -288,8 +308,35 @@ fun PianoKeyboard(
                             )
                             .width(blackW)
                             .height(blackH)
-                            .background(if (down) Color(0xFF444444) else Color.Black)
-                    )
+                            .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
+                            .background(bodyBrush)
+                    ) {
+                        // subtle side gloss
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .width(1.dp)
+                                .align(Alignment.CenterStart)
+                                .background(Color.White.copy(alpha = 0.10f))
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .width(1.dp)
+                                .align(Alignment.CenterEnd)
+                                .background(Color.White.copy(alpha = 0.06f))
+                        )
+
+                        // little bottom lip like the reference keycaps
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth(0.84f)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (down) Color(0xFF161616) else Color(0xFF272727))
+                        )
+                    }
                 }
 
                 // Labels overlay (C only, with octave)
