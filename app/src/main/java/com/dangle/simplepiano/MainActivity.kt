@@ -134,7 +134,7 @@ fun SustainIcon(size: Dp, on: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun PianoLoadingAnimation(modifier: Modifier = Modifier) {
-    val whiteCount = 14
+    val whiteCount = 7
     val transition = rememberInfiniteTransition(label = "piano_loading")
     val playHead by transition.animateFloat(
         initialValue = 0f,
@@ -146,8 +146,8 @@ private fun PianoLoadingAnimation(modifier: Modifier = Modifier) {
         label = "play_head"
     )
 
-    val whiteW = 18.dp
-    val whiteH = 90.dp
+    val whiteW = 14.dp
+    val whiteH = 56.dp
     val sep = 1.dp
     val blackW = whiteW * 0.62f
     val blackH = whiteH * 0.62f
@@ -156,9 +156,9 @@ private fun PianoLoadingAnimation(modifier: Modifier = Modifier) {
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF151A20))
-            .padding(10.dp),
+            .padding(6.dp),
         contentAlignment = Alignment.Center
     ) {
         Box(
@@ -205,14 +205,14 @@ private fun PianoLoadingAnimation(modifier: Modifier = Modifier) {
                         .offset(x = stride * i + whiteW + (sep / 2f) - (blackW / 2f))
                         .width(blackW)
                         .height(blackH)
-                        .clip(RoundedCornerShape(bottomStart = 3.dp, bottomEnd = 3.dp))
+                        .clip(RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
                         .background(keyBrush)
                 ) {
                     Box(
                         Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth(0.86f)
-                            .height(3.dp)
+                            .height(2.dp)
                             .clip(RoundedCornerShape(2.dp))
                             .background(if (active) Color(0xFF1C1C1C) else Color(0xFF252525))
                     )
